@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Интерактивная карта — квалификация креаторов</title>
+<style>
+:root{
+  --bg:#f7f8fa;--panel:#fff;--text:#17202a;--muted:#667085;--line:#cfd6df;
+  --assistant:#eaf5ff;--assistant-border:#2385d4;--assistant-dark:#0d5ea8;
+  --main:#eef9ec;--main-border:#55a85b;--main-dark:#287a35;
+  --approval:#f5efff;--approval-border:#7a56aa;--approval-dark:#5d348a;
+  --reject:#fff0f0;--reject-border:#df4c4c;--reject-dark:#b3261e;
+  --hold:#fff7dc;--hold-border:#d9a51d;--hold-dark:#9a6b00;
+  --approved:#e9f8ee;--approved-border:#2e9c58;--approved-dark:#1c7c40;
+  --shadow:0 8px 28px rgba(16,24,40,.09)
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:var(--text);background:var(--bg)}
+button{font:inherit;cursor:pointer}
+.app{max-width:1600px;margin:0 auto;padding:20px}
+.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.toolbar .title{font-size:20px;font-weight:800;margin-right:auto}
+.toolbar button{border:1px solid #d0d5dd;background:#fff;color:#344054;padding:9px 12px;border-radius:10px;min-height:40px}
+.toolbar button:hover{background:#f2f4f7}
+.toolbar button.active{border-color:#111827;color:#111827;background:#f4f4f5;font-weight:700}
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 16px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.dot.a{background:var(--assistant-border)} .dot.m{background:var(--main-border)} .dot.p{background:var(--approval-border)} .dot.r{background:var(--reject-border)} .dot.h{background:var(--hold-border)}
+.map-shell{position:relative;background:#fff;border:1px solid #e5e7eb;border-radius:24px;box-shadow:var(--shadow);overflow:hidden}
+.lane{position:relative;padding:22px 22px 30px}
+.lane+.lane{border-top:8px solid var(--bg)}
+.lane.assistant{background:linear-gradient(180deg,#eef8ff 0%,#fff 100%)}
+.lane.main{background:linear-gradient(180deg,#f2fbef 0%,#fff 100%)}
+.lane-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px;padding:0 4px}
+.lane-header h2{margin:0;font-size:24px;line-height:1.1}
+.lane-header p{margin:4px 0 0;color:var(--muted);font-size:14px}
+.lane-goal{font-size:13px;font-weight:700;border-radius:999px;padding:8px 12px;background:rgba(255,255,255,.75);border:1px solid #d0d5dd;white-space:nowrap}
+.flow{display:grid;grid-template-columns:repeat(4,minmax(220px,1fr));gap:34px;align-items:stretch;position:relative}
+.flow.main-flow{grid-template-columns:repeat(5,minmax(205px,1fr))}
+.card{position:relative;min-height:285px;padding:20px 18px 18px;border-radius:18px;border:2px solid;background:#fff;transition:.18s ease;overflow:visible}
+.card:hover{transform:translateY(-2px);box-shadow:0 10px 20px rgba(16,24,40,.08)}
+.card:focus-visible{outline:4px solid rgba(17,24,39,.18);outline-offset:3px}
+.card.assistant{background:var(--assistant);border-color:var(--assistant-border)}
+.card.main{background:var(--main);border-color:var(--main-border)}
+.card.approval{background:var(--approval);border-color:var(--approval-border)}
+.num{position:absolute;top:-17px;left:-12px;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:21px;border:3px solid #fff;box-shadow:0 2px 6px rgba(16,24,40,.12)}
+.assistant .num{background:var(--assistant-dark)} .main .num{background:var(--main-dark)} .approval .num{background:var(--approval-dark)}
+.card h3{margin:2px 0 12px 22px;font-size:17px;line-height:1.15}
+.card ul{margin:0;padding-left:20px;font-size:14px;line-height:1.42}
+.card li+li{margin-top:5px}
+.tag{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:8px;font-size:12px;font-weight:700;margin-top:12px;background:rgba(255,255,255,.8);border:1px solid rgba(0,0,0,.08)}
+.connector{position:absolute;top:50%;right:-35px;width:34px;height:2px;background:#111827;z-index:2}
+.connector::after{content:"";position:absolute;right:-1px;top:-5px;width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:9px solid #111827}
+.branch-area{display:grid;grid-template-columns:minmax(240px,1fr) minmax(200px,.75fr);gap:16px;margin-top:16px;align-items:start}
+.branch-box{border:2px solid;border-radius:16px;padding:14px 16px;background:#fff;min-height:88px}
+.branch-box strong{display:block;margin-bottom:4px}
+.branch-box p{margin:0;font-size:13px;color:#475467;line-height:1.35}
+.branch-box.reject{border-color:var(--reject-border);background:var(--reject)}
+.branch-box.hold{border-color:var(--hold-border);background:var(--hold)}
+.branch-box.approved{border-color:var(--approved-border);background:var(--approved)}
+.handoff{margin:18px auto 0;max-width:460px;border:2px dashed var(--assistant-border);border-radius:16px;padding:13px 16px;background:#f8fbff;text-align:center;font-size:13px}
+.handoff strong{display:block;font-size:15px;margin-bottom:3px}
+.decision-stack{display:grid;gap:8px;margin-top:14px}
+.decision{width:100%;border:1px solid;border-radius:12px;padding:9px 10px;font-weight:800;text-align:left;background:#fff}
+.decision.take{border-color:var(--approved-border);background:var(--approved);color:var(--approved-dark)}
+.decision.hold{border-color:var(--hold-border);background:var(--hold);color:var(--hold-dark)}
+.decision.reject{border-color:var(--reject-border);background:var(--reject);color:var(--reject-dark)}
+.bottom-results{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:18px}
+.highlight{box-shadow:0 0 0 4px rgba(17,24,39,.10),0 10px 25px rgba(16,24,40,.12)!important;transform:translateY(-2px)}
+.dimmed{opacity:.25;filter:grayscale(.15)}
+.path-take{box-shadow:0 0 0 4px rgba(46,156,88,.18)}
+.path-hold{box-shadow:0 0 0 4px rgba(217,165,29,.18)}
+.path-reject{box-shadow:0 0 0 4px rgba(223,76,76,.18)}
+.detail-panel{position:fixed;inset:0 0 0 auto;width:min(440px,92vw);background:#fff;border-left:1px solid #d0d5dd;box-shadow:-18px 0 40px rgba(16,24,40,.14);z-index:20;transform:translateX(105%);transition:transform .2s ease;padding:18px;overflow:auto}
+.detail-panel.open{transform:translateX(0)}
+.detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.detail-head h3{margin:0;font-size:22px}
+.close{border:1px solid #d0d5dd;background:#fff;border-radius:10px;width:40px;height:40px;font-size:22px}
+.detail-section{margin-top:18px;padding-top:16px;border-top:1px solid #eaecf0}
+.detail-section h4{margin:0 0 8px;font-size:14px}
+.detail-section ul{margin:0;padding-left:20px;line-height:1.5}
+.detail-section p{margin:0;color:#475467;line-height:1.5}
+.small{font-size:13px;color:var(--muted)}
+.help{margin-top:14px;color:#667085;font-size:12px}
+@media(max-width:1200px){.flow,.flow.main-flow{grid-template-columns:repeat(2,minmax(220px,1fr))}.connector{display:none}}
+@media(max-width:650px){.app{padding:10px}.lane{padding:18px 14px 24px}.flow,.flow.main-flow{grid-template-columns:1fr}.lane-header{flex-direction:column}.lane-goal{white-space:normal}.bottom-results,.branch-area{grid-template-columns:1fr}.card{min-height:unset}}
+@media print{
+  @page{size:A2 landscape;margin:10mm}
+  body{background:#fff}.toolbar,.legend,.help,.detail-panel{display:none!important}.app{max-width:none;padding:0}.map-shell{box-shadow:none;border:0}.lane{break-inside:avoid}
+  .flow{grid-template-columns:repeat(4,1fr)!important;gap:18px}.flow.main-flow{grid-template-columns:repeat(5,1fr)!important;gap:16px}.card{min-height:250px}.card h3{font-size:15px}.card ul{font-size:12px}
+}
+</style>
+</head>
+<body>
+<div class="app" id="creator-map">
+  <div class="toolbar" aria-label="Управление картой">
+    <div class="title">Интерактивная карта процесса</div>
+    <button type="button" data-path="all" class="active">Вся схема</button>
+    <button type="button" data-path="take">Маршрут TAKE</button>
+    <button type="button" data-path="hold">Маршрут HOLD</button>
+    <button type="button" data-path="reject">Маршрут REJECT</button>
+    <button type="button" id="printBtn">Печать / A2</button>
+  </div>
+
+  <div class="legend" aria-label="Легенда">
+    <span><i class="dot a"></i>Ассистент</span>
+    <span><i class="dot m"></i>Основной сотрудник</span>
+    <span><i class="dot p"></i>Согласование</span>
+    <span><i class="dot h"></i>HOLD</span>
+    <span><i class="dot r"></i>REJECT</span>
+  </div>
+
+  <div class="map-shell">
+    <section class="lane assistant" aria-labelledby="assistant-title">
+      <div class="lane-header">
+        <div>
+          <h2 id="assistant-title">Ассистент / скаут</h2>
+          <p>Быстрый сбор, проверка фактов и первичная фильтрация по чёткому чек-листу.</p>
+        </div>
+        <div class="lane-goal">Цель: готовая карточка для основного сотрудника</div>
+      </div>
+
+      <div class="flow">
+        <article class="card assistant" tabindex="0" data-step="1">
+          <span class="num">1</span><h3>Взять ссылку</h3>
+          <ul><li>Взять профиль из CRM: TO REVIEW</li><li>Открыть профиль</li><li>Назначить исполнителя</li><li>Статус → IN REVIEW</li></ul>
+          <span class="tag">≈ 30 сек</span><span class="connector"></span>
+        </article>
+
+        <article class="card assistant" tabindex="0" data-step="2">
+          <span class="num">2</span><h3>Собрать данные</h3>
+          <ul><li>Имя / handle / платформа</li><li>Подписчики, bio, категория</li><li>География: факт или Unknown</li><li>Контакты, если есть</li><li>Последние посты и базовые показатели</li></ul>
+          <span class="tag">Авто + вручную</span><span class="connector"></span>
+        </article>
+
+        <article class="card assistant" tabindex="0" data-step="3">
+          <span class="num">3</span><h3>Первичный фильтр</h3>
+          <ul><li>10K–100K followers</li><li>Преимущественно английский контент</li><li>США или US Fit: Unverified</li><li>Недавняя активность</li><li>Релевантная ниша</li></ul>
+          <span class="tag">Eligibility</span><span class="connector"></span>
+        </article>
+
+        <article class="card assistant" tabindex="0" data-step="4">
+          <span class="num">4</span><h3>Быстрый Reject Gate</h3>
+          <ul><li>Явно не наша ниша</li><li>Неактивный аккаунт</li><li>Подтверждённая подозрительная активность</li><li>Опасный / несовместимый контент</li><li>Вне географии — если подтверждено</li></ul>
+          <span class="tag">Сомнение ≠ REJECT</span>
+        </article>
+      </div>
+
+      <div class="branch-area">
+        <div class="handoff" data-result="handoff"><strong>Нет явного Reject → карточка готова</strong>Передать данные, ссылки на 3–5 обычных публикаций, риски и пробелы.</div>
+        <div class="branch-box reject" data-result="early-reject"><strong>Да → REJECT</strong><p>Код причины + короткое подтверждение. Проверка заканчивается.</p></div>
+      </div>
+    </section>
+
+    <section class="lane main" aria-labelledby="main-title">
+      <div class="lane-header">
+        <div>
+          <h2 id="main-title">Основной сотрудник</h2>
+          <p>Содержательная оценка, решение и подготовка качественного обращения.</p>
+        </div>
+        <div class="lane-goal">Цель: решить, стоит ли контактировать, и подготовить outreach</div>
+      </div>
+
+      <div class="flow main-flow">
+        <article class="card main" tabindex="0" data-step="5">
+          <span class="num">5</span><h3>Оценить профиль</h3>
+          <ul><li>Просмотреть 3–5 обычных публикаций</li><li>Оценить Content / Product Fit</li><li>Выборочно проверить комментарии</li><li>Посмотреть рекламу и сотрудничества</li><li>Понять: достаточно ли оснований для контакта?</li></ul>
+          <span class="tag">≈ 3–5 мин</span><span class="connector"></span>
+        </article>
+
+        <article class="card main" tabindex="0" data-step="6">
+          <span class="num">6</span><h3>Принять решение</h3>
+          <div class="decision-stack">
+            <button type="button" class="decision take" data-decision="take">TAKE — готов к контакту</button>
+            <button type="button" class="decision hold" data-decision="hold">HOLD — нужно доизучение</button>
+            <button type="button" class="decision reject" data-decision="reject">REJECT — с причиной</button>
+          </div>
+          <span class="tag">2–3 основания + риски + unknowns</span><span class="connector"></span>
+        </article>
+
+        <article class="card main" tabindex="0" data-step="7">
+          <span class="num">7</span><h3>Подготовить Outreach</h3>
+          <ul><li>Только для TAKE</li><li>Выбрать конкретный пост / тему</li><li>Сформулировать Personalization Angle</li><li>AI → один Draft DM</li><li>Проверить факты и отредактировать</li></ul>
+          <span class="tag">≈ 2–3 мин</span><span class="connector"></span>
+        </article>
+
+        <article class="card main" tabindex="0" data-step="8">
+          <span class="num">8</span><h3>Отправить на согласование</h3>
+          <ul><li>Карточка креатора</li><li>Решение и 2–3 основания</li><li>Риски / unknowns</li><li>Content Reference</li><li>Draft DM</li></ul>
+          <span class="tag">NEEDS APPROVAL</span><span class="connector"></span>
+        </article>
+
+        <article class="card approval" tabindex="0" data-step="9">
+          <span class="num">9</span><h3>Согласование</h3>
+          <ul><li>Проверить карточку и обоснование</li><li>APPROVE</li><li>MESSAGE REVISE</li><li>RECHECK CREATOR</li><li>HOLD / REJECT</li></ul>
+          <span class="tag">Финальное подтверждение</span>
+        </article>
+      </div>
+
+      <div class="bottom-results">
+        <div class="branch-box hold" data-result="hold"><strong>HOLD → доработка</strong><p>Причина + Next Action + ответственный + дата возврата. После получения данных вернуть на шаг 5.</p></div>
+        <div class="branch-box reject" data-result="reject"><strong>REJECT → завершить проверку</strong><p>Сохранить код причины и подтверждение. Не тратить время на дальнейший анализ.</p></div>
+        <div class="branch-box approved" data-result="approved"><strong>APPROVED → готово к отправке</strong><p>Решение и текст согласованы. Фактическая отправка — отдельный процесс.</p></div>
+      </div>
+    </section>
+  </div>
+  <p class="help">Нажмите на любой этап, чтобы открыть подробности. TAKE / HOLD / REJECT подсвечивают соответствующий маршрут.</p>
+</div>
+
+<aside class="detail-panel" id="detailPanel" aria-live="polite" aria-hidden="true">
+  <div class="detail-head">
+    <div><div class="small" id="detailRole"></div><h3 id="detailTitle">Этап</h3></div>
+    <button class="close" id="closePanel" type="button" aria-label="Закрыть">×</button>
+  </div>
+  <div class="detail-section"><h4>Что делает сотрудник</h4><ul id="detailActions"></ul></div>
+  <div class="detail-section"><h4>Результат этапа</h4><p id="detailOutput"></p></div>
+  <div class="detail-section"><h4>Ключевое правило</h4><p id="detailRule"></p></div>
+</aside>
+
+<script>
+(function(){
+  const root=document.getElementById('creator-map');
+  const panel=document.getElementById('detailPanel');
+  const details={
+    "1":{role:"Ассистент / скаут",title:"1. Взять ссылку",actions:["Открыть очередь TO REVIEW","Взять следующую запись","Открыть профиль","Поставить IN REVIEW и назначить исполнителя"],output:"Профиль официально взят в работу; понятно, кто его обрабатывает.",rule:"Не начинать исследование, пока статус не изменён."},
+    "2":{role:"Ассистент / скаут",title:"2. Собрать данные",actions:["Подтянуть доступные сведения автоматически","Проверить имя, handle, платформу и followers","Заполнить bio, категорию, контакты","Собрать недавние публикации и показатели"],output:"Карточка содержит максимум подтверждаемых базовых данных.",rule:"Неизвестное = Unknown. Не заполнять догадку как факт."},
+    "3":{role:"Ассистент / скаут",title:"3. Первичный фильтр",actions:["Проверить диапазон followers","Проверить язык","Проверить активность","Проверить связь с целевой нишей","Отметить географию США либо US Fit: Unverified"],output:"Понятно, проходит ли профиль базовые критерии.",rule:"Это eligibility, а не глубокий анализ качества креатора."},
+    "4":{role:"Ассистент / скаут",title:"4. Быстрый Reject Gate",actions:["Проверить только утверждённые причины быстрого отказа","Если причина подтверждена — записать код и доказательство","Если есть только сомнение — передать его как флаг"],output:"Либо быстрый REJECT, либо готовая карточка передана основному сотруднику.",rule:"Сомнение не равно REJECT."},
+    "5":{role:"Основной сотрудник",title:"5. Оценить профиль",actions:["Прочитать карточку, не повторяя сбор данных","Посмотреть 3–5 обычных публикаций","Проверить Content / Product Fit","Выборочно проверить комментарии и коммерческие интеграции","Отделить факты от предположений"],output:"Есть достаточно оснований для решения TAKE / HOLD / REJECT.",rule:"Цель — квалификация для первого контакта, а не полный аудит будущего партнёра."},
+    "6":{role:"Основной сотрудник",title:"6. Принять решение",actions:["Выбрать TAKE, HOLD или REJECT","Зафиксировать 2–3 главных основания","Записать риски и неизвестные","Для HOLD указать конкретный Next Action"],output:"Однозначное решение с коротким обоснованием.",rule:"Решение должно быть понятно другому человеку за 20–30 секунд."},
+    "7":{role:"Основной сотрудник",title:"7. Подготовить Outreach",actions:["Выбрать конкретный контент креатора","Сформулировать персональный угол обращения","Попросить AI создать один черновик","Проверить факты, персонализацию и тон"],output:"Готовый Draft DM для TAKE.",rule:"AI помогает писать, но не является источником фактов."},
+    "8":{role:"Основной сотрудник",title:"8. Отправить на согласование",actions:["Передать карточку","Передать решение и краткое обоснование","Показать риски и unknowns","Приложить content reference и Draft DM","Поставить NEEDS APPROVAL"],output:"Согласующий видит всё необходимое и не повторяет research.",rule:"Сообщение ещё не отправляется креатору."},
+    "9":{role:"Согласование",title:"9. Согласование",actions:["Проверить качество решения","Одобрить","Попросить изменить сообщение","Вернуть на повторную оценку","Перевести в HOLD или REJECT"],output:"APPROVED FOR OUTREACH либо чёткое действие для доработки.",rule:"Проблема только в тексте → шаг 7; проблема в оценке креатора → шаг 5."}
+  };
+
+  const detailRole=document.getElementById('detailRole'), detailTitle=document.getElementById('detailTitle'),
+        detailActions=document.getElementById('detailActions'), detailOutput=document.getElementById('detailOutput'),
+        detailRule=document.getElementById('detailRule');
+
+  function openStep(step){
+    const d=details[String(step)]; if(!d)return;
+    detailRole.textContent=d.role; detailTitle.textContent=d.title; detailActions.innerHTML='';
+    d.actions.forEach(a=>{const li=document.createElement('li');li.textContent=a;detailActions.appendChild(li)});
+    detailOutput.textContent=d.output; detailRule.textContent=d.rule;
+    panel.classList.add('open');panel.setAttribute('aria-hidden','false');
+  }
+  function closePanel(){panel.classList.remove('open');panel.setAttribute('aria-hidden','true')}
+  root.querySelectorAll('[data-step]').forEach(card=>{
+    card.addEventListener('click',e=>{if(e.target.closest('[data-decision]'))return;openStep(card.dataset.step)});
+    card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openStep(card.dataset.step)}})
+  });
+  document.getElementById('closePanel').addEventListener('click',closePanel);
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closePanel()});
+
+  const targets=[...root.querySelectorAll('[data-step]'),...root.querySelectorAll('[data-result]'),...root.querySelectorAll('.handoff')];
+  function clearPath(){targets.forEach(el=>el.classList.remove('dimmed','highlight','path-take','path-hold','path-reject'))}
+  function applyPath(type){
+    clearPath();
+    root.querySelectorAll('[data-path]').forEach(b=>b.classList.toggle('active',b.dataset.path===type));
+    if(type==='all')return;
+    targets.forEach(el=>el.classList.add('dimmed'));
+    const steps=type==='take'?['1','2','3','4','5','6','7','8','9']:['1','2','3','4','5','6'];
+    steps.forEach(s=>{const el=root.querySelector('[data-step="'+s+'"]');if(el){el.classList.remove('dimmed');el.classList.add('highlight','path-'+type)}});
+    const handoff=root.querySelector('[data-result="handoff"]'); if(handoff){handoff.classList.remove('dimmed');handoff.classList.add('path-'+type)}
+    if(type==='take'){const el=root.querySelector('[data-result="approved"]');el.classList.remove('dimmed');el.classList.add('highlight','path-take')}
+    if(type==='hold'){const el=root.querySelector('[data-result="hold"]');el.classList.remove('dimmed');el.classList.add('highlight','path-hold')}
+    if(type==='reject'){['early-reject','reject'].forEach(k=>{const el=root.querySelector('[data-result="'+k+'"]');if(el){el.classList.remove('dimmed');el.classList.add('highlight','path-reject')}})}
+  }
+  root.querySelectorAll('[data-path]').forEach(btn=>btn.addEventListener('click',()=>applyPath(btn.dataset.path)));
+  root.querySelectorAll('[data-decision]').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();applyPath(btn.dataset.decision)}));
+  document.getElementById('printBtn').addEventListener('click',()=>window.print());
+})();
+</script>
+</body>
+</html>
